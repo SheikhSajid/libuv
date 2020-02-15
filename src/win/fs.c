@@ -248,7 +248,36 @@ INLINE static int fs__capture_path(uv_fs_t* req, const char* path,
   return 0;
 }
 
+INLINE static int fs__final_path(HANDLE handle, WCHAR** finalpath_ptr, DWORD* len_ptr) {
+  DWORD finalpath_len;
+  WCHAR* finalpath_buf;
 
+  finalpath_len = GetFinalPathNameByHandleW(handle, NULL, 0, VOLUME_NAME_DOS);
+  if (finalpath_len == 0) {
+    return -1;
+  }
+
+  finalpath_buf = uv__malloc((finalpath_len + 1) * sizeof(WCHAR));
+  if (finalpath_buf == NULL) {
+    SetLastError(ERROR_OUTOFMEMORY);
+    return -1;
+  }
+
+  if (GetFinalPathNameByHandleW(
+          handle, finalpath_buf, finalpath_len, VOLUME_NAME_DOS) == 0) {
+    uv__free(finalpath_buf);
+    SetLastError(ERROR_INVALID_HANDLE);
+    return -1;
+  }
+
+  *finalpath_ptr = finalpath_buf;
+
+  if (len_ptr != NULL) {
+    *len_ptr = finalpath_len;
+  }
+  
+  return 0;
+}
 
 INLINE static void uv_fs_req_init(uv_loop_t* loop, uv_fs_t* req,
     uv_fs_type fs_type, const uv_fs_cb cb) {
@@ -2531,24 +2560,31 @@ static ssize_t fs__realpath_handle(HANDLE handle, char** realpath_ptr) {
   WCHAR* w_realpath_ptr = NULL;
   WCHAR* w_realpath_buf;
 
-  w_realpath_len = GetFinalPathNameByHandleW(handle, NULL, 0, VOLUME_NAME_DOS);
-  if (w_realpath_len == 0) {
+  if (fs__final_path(handle, &w_realpath_buf, &w_realpath_len) == -1) {
     return -1;
   }
+  
+  puts("This is new!");
+  // printf("final path: %ls", w_realpath_buf);
 
-  w_realpath_buf = uv__malloc((w_realpath_len + 1) * sizeof(WCHAR));
-  if (w_realpath_buf == NULL) {
-    SetLastError(ERROR_OUTOFMEMORY);
-    return -1;
-  }
+  // w_realpath_len = GetFinalPathNameByHandleW(handle, NULL, 0, VOLUME_NAME_DOS);
+  // if (w_realpath_len == 0) {
+  //   return -1;
+  // }
+
+  // w_realpath_buf = uv__malloc((w_realpath_len + 1) * sizeof(WCHAR));
+  // if (w_realpath_buf == NULL) {
+  //   SetLastError(ERROR_OUTOFMEMORY);
+  //   return -1;
+  // }
+
+  // if (GetFinalPathNameByHandleW(
+  //         handle, w_realpath_ptr, w_realpath_len, VOLUME_NAME_DOS) == 0) {
+  //   uv__free(w_realpath_buf);
+  //   SetLastError(ERROR_INVALID_HANDLE);
+  //   return -1;
+  // }
   w_realpath_ptr = w_realpath_buf;
-
-  if (GetFinalPathNameByHandleW(
-          handle, w_realpath_ptr, w_realpath_len, VOLUME_NAME_DOS) == 0) {
-    uv__free(w_realpath_buf);
-    SetLastError(ERROR_INVALID_HANDLE);
-    return -1;
-  }
 
   /* convert UNC path to long path */
   if (wcsncmp(w_realpath_ptr,
@@ -2613,7 +2649,6 @@ static void fs__fchown(uv_fs_t* req) {
 static void fs__lchown(uv_fs_t* req) {
   req->result = 0;
 }
-
 
 static void fs__statfs(uv_fs_t* req) {
   uv_statfs_t* stat_fs;
