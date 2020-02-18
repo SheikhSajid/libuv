@@ -2564,27 +2564,7 @@ static ssize_t fs__realpath_handle(HANDLE handle, char** realpath_ptr) {
     SetLastError(err);
     return -1;
   }
-  
-  puts("This is new!");
-  // printf("final path: %ls", w_realpath_buf);
 
-  // w_realpath_len = GetFinalPathNameByHandleW(handle, NULL, 0, VOLUME_NAME_DOS);
-  // if (w_realpath_len == 0) {
-  //   return -1;
-  // }
-
-  // w_realpath_buf = uv__malloc((w_realpath_len + 1) * sizeof(WCHAR));
-  // if (w_realpath_buf == NULL) {
-  //   SetLastError(ERROR_OUTOFMEMORY);
-  //   return -1;
-  // }
-
-  // if (GetFinalPathNameByHandleW(
-  //         handle, w_realpath_ptr, w_realpath_len, VOLUME_NAME_DOS) == 0) {
-  //   uv__free(w_realpath_buf);
-  //   SetLastError(ERROR_INVALID_HANDLE);
-  //   return -1;
-  // }
   w_realpath_ptr = w_realpath_buf;
 
   /* convert UNC path to long path */
@@ -2701,7 +2681,7 @@ static void fs__statfs(uv_fs_t* req) {
     return;
   }
   uv__free(root);
-  
+
   stat_fs = uv__malloc(sizeof(*stat_fs));
   if (stat_fs == NULL) {
     SET_REQ_UV_ERROR(req, UV_ENOMEM, ERROR_OUTOFMEMORY);
