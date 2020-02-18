@@ -254,20 +254,18 @@ INLINE static int fs__final_path(HANDLE handle, WCHAR** finalpath_ptr, DWORD* le
 
   finalpath_len = GetFinalPathNameByHandleW(handle, NULL, 0, VOLUME_NAME_DOS);
   if (finalpath_len == 0) {
-    return -1;
+    return GetLastError();
   }
 
   finalpath_buf = uv__malloc((finalpath_len + 1) * sizeof(WCHAR));
   if (finalpath_buf == NULL) {
-    SetLastError(ERROR_OUTOFMEMORY);
-    return -1;
+    return ERROR_OUTOFMEMORY;
   }
 
   if (GetFinalPathNameByHandleW(
           handle, finalpath_buf, finalpath_len, VOLUME_NAME_DOS) == 0) {
     uv__free(finalpath_buf);
-    SetLastError(ERROR_INVALID_HANDLE);
-    return -1;
+    return ERROR_INVALID_HANDLE;
   }
 
   *finalpath_ptr = finalpath_buf;
@@ -2556,11 +2554,14 @@ static void fs__readlink(uv_fs_t* req) {
 
 static ssize_t fs__realpath_handle(HANDLE handle, char** realpath_ptr) {
   int r;
+  int err;
   DWORD w_realpath_len;
   WCHAR* w_realpath_ptr = NULL;
   WCHAR* w_realpath_buf;
 
-  if (fs__final_path(handle, &w_realpath_buf, &w_realpath_len) == -1) {
+  err = fs__final_path(handle, &w_realpath_buf, &w_realpath_len);
+  if (err) {
+    SetLastError(err);
     return -1;
   }
   
@@ -2651,13 +2652,47 @@ static void fs__lchown(uv_fs_t* req) {
 }
 
 static void fs__statfs(uv_fs_t* req) {
+  HANDLE handle;
+  int err;
+  WCHAR* root;
+  WCHAR* finalpath;
+  DWORD finalpath_len;
   uv_statfs_t* stat_fs;
   DWORD sectors_per_cluster;
   DWORD bytes_per_sector;
   DWORD free_clusters;
   DWORD total_clusters;
 
-  if (0 == GetDiskFreeSpaceW(req->file.pathw,
+  handle = CreateFileW(req->file.pathw,
+                       0,
+                       0,
+                       NULL,
+                       OPEN_EXISTING,
+                       FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS,
+                       NULL);
+  if (handle == INVALID_HANDLE_VALUE) {
+    SET_REQ_WIN32_ERROR(req, GetLastError());
+    return;
+  }
+
+  err = fs__final_path(handle, &finalpath, &finalpath_len);
+  if (err) {
+    SET_REQ_WIN32_ERROR(req, err);
+    return;
+  }
+
+  root = uv__malloc((finalpath_len + 1) * sizeof(WCHAR));
+  if (root == NULL) {
+    SET_REQ_WIN32_ERROR(req, ERROR_OUTOFMEMORY);
+    return;
+  }
+
+  if (GetVolumePathNameW(finalpath, root, finalpath_len) == 0) {
+    uv__free(root);
+    SET_REQ_WIN32_ERROR(req, GetLastError());
+  }
+
+  if (0 == GetDiskFreeSpaceW(root,
                              &sectors_per_cluster,
                              &bytes_per_sector,
                              &free_clusters,
