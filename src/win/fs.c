@@ -2700,7 +2700,8 @@ static void fs__statfs(uv_fs_t* req) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
     return;
   }
-
+  uv__free(root);
+  
   stat_fs = uv__malloc(sizeof(*stat_fs));
   if (stat_fs == NULL) {
     SET_REQ_UV_ERROR(req, UV_ENOMEM, ERROR_OUTOFMEMORY);
