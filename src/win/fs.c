@@ -2274,6 +2274,33 @@ static void fs__futime(uv_fs_t* req) {
   req->result = 0;
 }
 
+static void fs__lutime(uv_fs_t* req) {
+  HANDLE handle;
+
+  handle = CreateFileW(req->file.pathw,
+                       FILE_WRITE_ATTRIBUTES,
+                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                       NULL,
+                       OPEN_EXISTING,
+                       FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+                       NULL);
+
+  if (handle == INVALID_HANDLE_VALUE) {
+    SET_REQ_WIN32_ERROR(req, GetLastError());
+    return;
+  }
+
+  if (fs__utime_handle(handle, req->fs.time.atime, req->fs.time.mtime) != 0) {
+    SET_REQ_WIN32_ERROR(req, GetLastError());
+    CloseHandle(handle);
+    return;
+  }
+
+  CloseHandle(handle);
+
+  req->result = 0;
+}
+
 
 static void fs__link(uv_fs_t* req) {
   DWORD r = CreateHardLinkW(req->fs.info.new_pathw, req->file.pathw, NULL);
@@ -2670,6 +2697,7 @@ static void uv__fs_work(struct uv__work* w) {
     XX(FTRUNCATE, ftruncate)
     XX(UTIME, utime)
     XX(FUTIME, futime)
+    XX(LUTIME, lutime)
     XX(ACCESS, access)
     XX(CHMOD, chmod)
     XX(FCHMOD, fchmod)
@@ -3217,6 +3245,21 @@ int uv_fs_futime(uv_loop_t* loop, uv_fs_t* req, uv_file fd, double atime,
     double mtime, uv_fs_cb cb) {
   INIT(UV_FS_FUTIME);
   req->file.fd = fd;
+  req->fs.time.atime = atime;
+  req->fs.time.mtime = mtime;
+  POST;
+}
+
+int uv_fs_lutime(uv_loop_t* loop, uv_fs_t* req, const char* path, double atime,
+    double mtime, uv_fs_cb cb) {
+  int err;
+
+  INIT(UV_FS_LUTIME);
+  err = fs__capture_path(req, path, NULL, cb != NULL);
+  if (err) {
+    return uv_translate_sys_error(err);
+  }
+
   req->fs.time.atime = atime;
   req->fs.time.mtime = mtime;
   POST;
