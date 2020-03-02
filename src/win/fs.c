@@ -2225,32 +2225,66 @@ INLINE static int fs__utime_handle(HANDLE handle, double atime, double mtime) {
   return 0;
 }
 
-
-static void fs__utime(uv_fs_t* req) {
+INLINE static DWORD fs__utime_impl_from_path(WCHAR* path,
+                                             double atime,
+                                             double mtime,
+                                             int do_lutime) {
   HANDLE handle;
+  DWORD flags;
+  DWORD ret;
 
-  handle = CreateFileW(req->file.pathw,
+  flags = FILE_FLAG_BACKUP_SEMANTICS;
+  if (do_lutime) {
+    flags |= FILE_FLAG_OPEN_REPARSE_POINT;
+  }
+
+  handle = CreateFileW(path,
                        FILE_WRITE_ATTRIBUTES,
                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                        NULL,
                        OPEN_EXISTING,
-                       FILE_FLAG_BACKUP_SEMANTICS,
+                       flags,
                        NULL);
 
   if (handle == INVALID_HANDLE_VALUE) {
-    SET_REQ_WIN32_ERROR(req, GetLastError());
-    return;
-  }
-
-  if (fs__utime_handle(handle, req->fs.time.atime, req->fs.time.mtime) != 0) {
-    SET_REQ_WIN32_ERROR(req, GetLastError());
-    CloseHandle(handle);
-    return;
+    ret = GetLastError();
+  } else if (fs__utime_handle(handle, atime, mtime) != 0) {
+    ret = GetLastError();
+  } else {
+    ret = 0;
   }
 
   CloseHandle(handle);
+  return ret;
+}
+
+INLINE static void fs__utime_impl(uv_fs_t* req, int do_lutime) {
+  DWORD error;
+
+  error = fs__utime_impl_from_path(req->file.pathw,
+                                   req->fs.time.atime,
+                                   req->fs.time.mtime,
+                                   do_lutime);
+
+  if (error != 0) {
+    if (do_lutime &&
+        (error == ERROR_SYMLINK_NOT_SUPPORTED ||
+         error == ERROR_NOT_A_REPARSE_POINT)) {
+      /* Opened file is a reparse point but not a symlink. Try again. */
+      fs__utime_impl(req, 0);
+    } else {
+      /* utime failed. */
+      SET_REQ_WIN32_ERROR(req, error);
+    }
+
+    return;
+  }
 
   req->result = 0;
+}
+
+static void fs__utime(uv_fs_t* req) {
+  fs__utime_impl(req, 0);
 }
 
 
@@ -2275,30 +2309,7 @@ static void fs__futime(uv_fs_t* req) {
 }
 
 static void fs__lutime(uv_fs_t* req) {
-  HANDLE handle;
-
-  handle = CreateFileW(req->file.pathw,
-                       FILE_WRITE_ATTRIBUTES,
-                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                       NULL,
-                       OPEN_EXISTING,
-                       FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
-                       NULL);
-
-  if (handle == INVALID_HANDLE_VALUE) {
-    SET_REQ_WIN32_ERROR(req, GetLastError());
-    return;
-  }
-
-  if (fs__utime_handle(handle, req->fs.time.atime, req->fs.time.mtime) != 0) {
-    SET_REQ_WIN32_ERROR(req, GetLastError());
-    CloseHandle(handle);
-    return;
-  }
-
-  CloseHandle(handle);
-
-  req->result = 0;
+  fs__utime_impl(req, 1);
 }
 
 
