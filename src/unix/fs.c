@@ -269,7 +269,7 @@ static ssize_t uv__fs_lutime(uv_fs_t* req) {
     || defined(__DragonFly__)                                                 \
     || defined(__FreeBSD__)                                                   \
     || defined(__FreeBSD_kernel__)                                            \
-    || defined(__NetBSD__)                                                    \
+    || defined(__NetBSD__)
   struct timeval tv[2];
   tv[0].tv_sec  = req->atime;
   tv[0].tv_usec = (uint64_t)(req->atime * 1000000) % 1000000;
