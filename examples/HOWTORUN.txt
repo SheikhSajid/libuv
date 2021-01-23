@@ -6,3 +6,11 @@ gcc ./examples/<folder>/<src>.c -I./include -L./.libs -luv -o <compiled_prog>
 # compile error library from the linux API book
 gcc -I./include -fPIC -c ./examples/lib/error_functions.c -o ./examples/lib/error_functions.o
 gcc -shared ./examples/lib/error_functions.o -o ./.libs/libbkerr.so
+
+# Compiling examples
+gcc ./examples/path/to/example.c -c -I./include -o ./examples/path/to/compiledCode.o
+gcc ./examples/path/to/compiledCode.o -L/home/archgriffin/code/oss/libuv/.libs -l(bkerr | uv) -o ./examples/path/to/linkedProgram
+
+# Running examples
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/archgriffin/code/oss/libuv/.libs
+/path/to/program
