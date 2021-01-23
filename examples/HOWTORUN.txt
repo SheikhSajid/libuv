@@ -2,3 +2,7 @@ make && make install # Only if code was modified
 gcc <src>.c -luv <compiled_prog>
 gcc ./examples/<folder>/<src>.c -I./include -L./.libs -luv <compiled_prog>
 
+
+# compile error library from the linux API book
+gcc -I./include -fPIC -c ./examples/lib/error_functions.c -o ./examples/lib/error_functions.o
+gcc -shared ./examples/lib/error_functions.o -o ./.libs/libbkerr.so
