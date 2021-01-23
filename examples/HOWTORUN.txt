@@ -1,3 +1,4 @@
 make && make install # Only if code was modified
 gcc <src>.c -luv <compiled_prog>
+gcc ./examples/<folder>/<src>.c -I./include -L./.libs -luv <compiled_prog>
 
